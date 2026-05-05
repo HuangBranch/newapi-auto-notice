@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNotificationStore } from '@/stores/notification-store'
 import { getNotice } from '@/lib/api'
@@ -16,6 +16,9 @@ function hashString(input: string): string {
 
   return hash.toString(36)
 }
+
+const autoOpenedKeysThisPageLoad = new Set<string>()
+const pendingAutoOpenKeysThisPageLoad = new Set<string>()
 
 /**
  * Generate a unique key for an announcement
@@ -44,7 +47,6 @@ function getAnnouncementKey(item: Record<string, unknown>): string {
  * Provides unread counts and read status management
  */
 export function useNotifications() {
-  const autoOpenedKeyRef = useRef<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<'notice' | 'announcements'>(
     'notice'
@@ -103,12 +105,6 @@ export function useNotifications() {
     }
   }, [noticeContent, lastReadNotice, unreadAnnouncementKeys])
 
-  // Handle dialog open
-  const handleOpenDialog = (tab?: 'notice' | 'announcements') => {
-    setActiveTab(tab || 'notice')
-    setDialogOpen(true)
-  }
-
   // Handle tab change
   const handleTabChange = (tab: 'notice' | 'announcements') => {
     setActiveTab(tab)
@@ -122,6 +118,13 @@ export function useNotifications() {
     return hashString(fingerprint)
   }, [noticeContent, unreadAnnouncementKeys, unreadCounts.notice])
 
+  // Handle dialog open
+  const handleOpenDialog = (tab?: 'notice' | 'announcements') => {
+    autoOpenedKeysThisPageLoad.add(autoOpenStorageKey)
+    setActiveTab(tab || 'notice')
+    setDialogOpen(true)
+  }
+
   // Handle "Close Today" action
   const handleCloseToday = () => {
     const today = new Date().toDateString()
@@ -134,14 +137,19 @@ export function useNotifications() {
   useEffect(() => {
     if (noticeLoading || statusLoading) return
     if (dialogOpen || noticeClosedToday || unreadCounts.total <= 0) return
-    if (autoOpenedKeyRef.current === autoOpenStorageKey) return
-    autoOpenedKeyRef.current = autoOpenStorageKey
+    if (autoOpenedKeysThisPageLoad.has(autoOpenStorageKey)) return
+    if (pendingAutoOpenKeysThisPageLoad.has(autoOpenStorageKey)) return
+    pendingAutoOpenKeysThisPageLoad.add(autoOpenStorageKey)
 
     const timer = window.setTimeout(() => {
+      pendingAutoOpenKeysThisPageLoad.delete(autoOpenStorageKey)
       handleOpenDialog(unreadCounts.notice > 0 ? 'notice' : 'announcements')
     }, 600)
 
-    return () => window.clearTimeout(timer)
+    return () => {
+      window.clearTimeout(timer)
+      pendingAutoOpenKeysThisPageLoad.delete(autoOpenStorageKey)
+    }
   }, [
     autoOpenStorageKey,
     dialogOpen,
