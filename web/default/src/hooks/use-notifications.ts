@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNotificationStore } from '@/stores/notification-store'
 import { getNotice } from '@/lib/api'
@@ -57,6 +57,9 @@ function getAnnouncementKey(item: Record<string, unknown>): string {
   return `hash:${hashString(fingerprint)}`
 }
 
+const autoOpenedKeysThisPageLoad = new Set<string>()
+const pendingAutoOpenKeysThisPageLoad = new Set<string>()
+
 /**
  * Hook to manage notifications (Notice + Announcements)
  * Provides unread counts and read status management
@@ -89,8 +92,7 @@ export function useNotifications() {
   // Notification store
   const {
     lastReadNotice,
-    markNoticeRead,
-    markAnnouncementsRead,
+    readAnnouncementKeys,
     isAnnouncementRead,
     isNoticeClosed,
     setClosedUntilDate,
@@ -101,54 +103,80 @@ export function useNotifications() {
     ? (noticeResponse.data || '').trim()
     : ''
 
+  const unreadAnnouncementKeys = useMemo(() => {
+    return announcements
+      .map((item: Record<string, unknown>) => getAnnouncementKey(item))
+      .filter((key: string) => key && !isAnnouncementRead(key))
+  }, [announcements, isAnnouncementRead, readAnnouncementKeys])
+
   // Calculate unread counts
   const unreadCounts = useMemo(() => {
     const noticeUnread =
       noticeContent && noticeContent !== lastReadNotice ? 1 : 0
 
-    const announcementsUnread = announcements.filter(
-      (item: Record<string, unknown>) => {
-        const key = getAnnouncementKey(item)
-        return !isAnnouncementRead(key)
-      }
-    ).length
+    const announcementsUnread = unreadAnnouncementKeys.length
 
     return {
       notice: noticeUnread,
       announcements: announcementsUnread,
       total: noticeUnread + announcementsUnread,
     }
-  }, [noticeContent, lastReadNotice, announcements, isAnnouncementRead])
+  }, [noticeContent, lastReadNotice, unreadAnnouncementKeys])
+
+  // Handle tab change
+  const handleTabChange = (tab: 'notice' | 'announcements') => {
+    setActiveTab(tab)
+  }
+
+  const autoOpenStorageKey = useMemo(() => {
+    const fingerprint = JSON.stringify({
+      notice: unreadCounts.notice > 0 ? noticeContent : '',
+      announcements: unreadAnnouncementKeys,
+    })
+    return hashString(fingerprint)
+  }, [noticeContent, unreadAnnouncementKeys, unreadCounts.notice])
 
   // Handle dialog open
   const handleOpenDialog = (tab?: 'notice' | 'announcements') => {
-    // Mark Notice as read when opening dialog
-    if (noticeContent) {
-      markNoticeRead(noticeContent)
-    }
-
+    autoOpenedKeysThisPageLoad.add(autoOpenStorageKey)
     setActiveTab(tab || 'notice')
     setDialogOpen(true)
-  }
-
-  // Handle tab change - mark announcements as read when switching to that tab
-  const handleTabChange = (tab: 'notice' | 'announcements') => {
-    setActiveTab(tab)
-
-    if (tab === 'announcements' && announcements.length > 0) {
-      const allKeys = announcements.map((item: Record<string, unknown>) =>
-        getAnnouncementKey(item)
-      )
-      markAnnouncementsRead(allKeys)
-    }
   }
 
   // Handle "Close Today" action
   const handleCloseToday = () => {
     const today = new Date().toDateString()
-    setClosedUntilDate(today)
+    setClosedUntilDate(today, autoOpenStorageKey)
     setDialogOpen(false)
   }
+
+  const noticeClosedToday = isNoticeClosed(autoOpenStorageKey)
+
+  useEffect(() => {
+    if (noticeLoading || statusLoading) return
+    if (dialogOpen || noticeClosedToday || unreadCounts.total <= 0) return
+    if (autoOpenedKeysThisPageLoad.has(autoOpenStorageKey)) return
+    if (pendingAutoOpenKeysThisPageLoad.has(autoOpenStorageKey)) return
+    pendingAutoOpenKeysThisPageLoad.add(autoOpenStorageKey)
+
+    const timer = window.setTimeout(() => {
+      pendingAutoOpenKeysThisPageLoad.delete(autoOpenStorageKey)
+      handleOpenDialog(unreadCounts.notice > 0 ? 'notice' : 'announcements')
+    }, 600)
+
+    return () => {
+      window.clearTimeout(timer)
+      pendingAutoOpenKeysThisPageLoad.delete(autoOpenStorageKey)
+    }
+  }, [
+    autoOpenStorageKey,
+    dialogOpen,
+    noticeClosedToday,
+    noticeLoading,
+    statusLoading,
+    unreadCounts.notice,
+    unreadCounts.total,
+  ])
 
   return {
     // Data
@@ -174,6 +202,6 @@ export function useNotifications() {
     refetchNotice,
 
     // Status
-    isNoticeClosed: isNoticeClosed(),
+    isNoticeClosed: noticeClosedToday,
   }
 }
