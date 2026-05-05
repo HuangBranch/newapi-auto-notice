@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNotificationStore } from '@/stores/notification-store'
 import { getNotice } from '@/lib/api'
@@ -39,13 +39,12 @@ function getAnnouncementKey(item: Record<string, unknown>): string {
   return `hash:${hashString(fingerprint)}`
 }
 
-const AUTO_OPEN_STORAGE_PREFIX = 'newapi-notifications-auto-opened'
-
 /**
  * Hook to manage notifications (Notice + Announcements)
  * Provides unread counts and read status management
  */
 export function useNotifications() {
+  const autoOpenedKeyRef = useRef<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<'notice' | 'announcements'>(
     'notice'
@@ -151,16 +150,14 @@ export function useNotifications() {
       notice: unreadCounts.notice > 0 ? noticeContent : '',
       announcements: unreadAnnouncementKeys,
     })
-    return `${AUTO_OPEN_STORAGE_PREFIX}:${hashString(fingerprint)}`
+    return hashString(fingerprint)
   }, [noticeContent, unreadAnnouncementKeys, unreadCounts.notice])
 
   useEffect(() => {
     if (noticeLoading || statusLoading) return
     if (dialogOpen || noticeClosedToday || unreadCounts.total <= 0) return
-    if (typeof window === 'undefined') return
-
-    if (window.sessionStorage.getItem(autoOpenStorageKey) === 'true') return
-    window.sessionStorage.setItem(autoOpenStorageKey, 'true')
+    if (autoOpenedKeyRef.current === autoOpenStorageKey) return
+    autoOpenedKeyRef.current = autoOpenStorageKey
 
     const timer = window.setTimeout(() => {
       handleOpenDialog(unreadCounts.notice > 0 ? 'notice' : 'announcements')
