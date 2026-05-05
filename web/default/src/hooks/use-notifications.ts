@@ -35,6 +35,9 @@ function hashString(input: string): string {
   return hash.toString(36)
 }
 
+const autoOpenedKeysThisPageLoad = new Set<string>()
+const pendingAutoOpenKeysThisPageLoad = new Set<string>()
+
 /**
  * Generate a unique key for an announcement
  * Prefer backend id, fall back to a content hash so edits register
@@ -56,9 +59,6 @@ function getAnnouncementKey(item: Record<string, unknown>): string {
   })
   return `hash:${hashString(fingerprint)}`
 }
-
-const autoOpenedKeysThisPageLoad = new Set<string>()
-const pendingAutoOpenKeysThisPageLoad = new Set<string>()
 
 /**
  * Hook to manage notifications (Notice + Announcements)
