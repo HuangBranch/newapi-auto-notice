@@ -73,8 +73,6 @@ export function useNotifications() {
   const {
     lastReadNotice,
     readAnnouncementKeys,
-    markNoticeRead,
-    markAnnouncementsRead,
     isAnnouncementRead,
     isNoticeClosed,
     setClosedUntilDate,
@@ -107,34 +105,13 @@ export function useNotifications() {
 
   // Handle dialog open
   const handleOpenDialog = (tab?: 'notice' | 'announcements') => {
-    const nextTab = tab || 'notice'
-
-    // Mark Notice as read when opening dialog
-    if (noticeContent) {
-      markNoticeRead(noticeContent)
-    }
-
-    if (nextTab === 'announcements' && announcements.length > 0) {
-      const allKeys = announcements.map((item: Record<string, unknown>) =>
-        getAnnouncementKey(item)
-      )
-      markAnnouncementsRead(allKeys)
-    }
-
-    setActiveTab(nextTab)
+    setActiveTab(tab || 'notice')
     setDialogOpen(true)
   }
 
-  // Handle tab change - mark announcements as read when switching to that tab
+  // Handle tab change
   const handleTabChange = (tab: 'notice' | 'announcements') => {
     setActiveTab(tab)
-
-    if (tab === 'announcements' && announcements.length > 0) {
-      const allKeys = announcements.map((item: Record<string, unknown>) =>
-        getAnnouncementKey(item)
-      )
-      markAnnouncementsRead(allKeys)
-    }
   }
 
   // Handle "Close Today" action
