@@ -114,14 +114,6 @@ export function useNotifications() {
     setActiveTab(tab)
   }
 
-  // Handle "Close Today" action
-  const handleCloseToday = () => {
-    const today = new Date().toDateString()
-    setClosedUntilDate(today)
-    setDialogOpen(false)
-  }
-
-  const noticeClosedToday = isNoticeClosed()
   const autoOpenStorageKey = useMemo(() => {
     const fingerprint = JSON.stringify({
       notice: unreadCounts.notice > 0 ? noticeContent : '',
@@ -129,6 +121,15 @@ export function useNotifications() {
     })
     return hashString(fingerprint)
   }, [noticeContent, unreadAnnouncementKeys, unreadCounts.notice])
+
+  // Handle "Close Today" action
+  const handleCloseToday = () => {
+    const today = new Date().toDateString()
+    setClosedUntilDate(today, autoOpenStorageKey)
+    setDialogOpen(false)
+  }
+
+  const noticeClosedToday = isNoticeClosed(autoOpenStorageKey)
 
   useEffect(() => {
     if (noticeLoading || statusLoading) return
