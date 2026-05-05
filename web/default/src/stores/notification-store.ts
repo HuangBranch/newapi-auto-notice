@@ -26,13 +26,15 @@ interface NotificationState {
   readAnnouncementKeys: string[]
   // Timestamp of last "Close Today" action
   closedUntilDate: string | null
+  // Content fingerprint closed by the last "Close Today" action
+  closedUntilKey: string | null
 
   // Actions
   markNoticeRead: (noticeContent: string) => void
   markAnnouncementsRead: (keys: string[]) => void
-  setClosedUntilDate: (date: string | null) => void
+  setClosedUntilDate: (date: string | null, key?: string | null) => void
   isAnnouncementRead: (key: string) => boolean
-  isNoticeClosed: () => boolean
+  isNoticeClosed: (key?: string | null) => boolean
 }
 
 /**
@@ -45,6 +47,7 @@ export const useNotificationStore = create<NotificationState>()(
       lastReadNotice: '',
       readAnnouncementKeys: [],
       closedUntilDate: null,
+      closedUntilKey: null,
 
       markNoticeRead: (noticeContent: string) => {
         // Persist the full trimmed content so edits beyond 100 chars register
@@ -60,20 +63,25 @@ export const useNotificationStore = create<NotificationState>()(
         }))
       },
 
-      setClosedUntilDate: (date: string | null) => {
-        set({ closedUntilDate: date })
+      setClosedUntilDate: (date: string | null, key?: string | null) => {
+        set({
+          closedUntilDate: date,
+          closedUntilKey: date ? key ?? null : null,
+        })
       },
 
       isAnnouncementRead: (key: string) => {
         return get().readAnnouncementKeys.includes(key)
       },
 
-      isNoticeClosed: () => {
-        const { closedUntilDate } = get()
+      isNoticeClosed: (key?: string | null) => {
+        const { closedUntilDate, closedUntilKey } = get()
         if (!closedUntilDate) return false
 
         const today = new Date().toDateString()
-        return closedUntilDate === today
+        if (closedUntilDate !== today) return false
+
+        return Boolean(key && closedUntilKey && closedUntilKey === key)
       },
     }),
     {
@@ -82,6 +90,7 @@ export const useNotificationStore = create<NotificationState>()(
         lastReadNotice: state.lastReadNotice,
         readAnnouncementKeys: state.readAnnouncementKeys,
         closedUntilDate: state.closedUntilDate,
+        closedUntilKey: state.closedUntilKey,
       }),
     }
   )
