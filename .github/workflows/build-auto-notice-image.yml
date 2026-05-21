@@ -3,7 +3,7 @@ name: Build auto-notice image
 on:
   push:
     branches:
-      - auto-notice-rc2
+      - auto-notice-rc7
   workflow_dispatch:
 
 permissions:
@@ -36,8 +36,8 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=auto-notice-rc2
-            type=sha,prefix=auto-notice-rc2-
+            type=raw,value=auto-notice-rc7
+            type=sha,prefix=auto-notice-rc7-
 
       - name: Build and push
         uses: docker/build-push-action@v6
